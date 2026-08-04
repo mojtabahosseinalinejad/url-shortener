@@ -1,7 +1,7 @@
 {
-  "name": "url-shortener",
+  "name": "js-url-shortener",
   "version": "1.0.0",
-  "description": "",
+  "description": "Zero-dependency URL shortener using pure JS factory functions",
   "homepage": "https://github.com/mojtabahosseinalinejad/url-shortener#readme",
   "bugs": {
     "url": "https://github.com/mojtabahosseinalinejad/url-shortener/issues"
@@ -10,9 +10,23 @@
     "type": "git",
     "url": "git+https://github.com/mojtabahosseinalinejad/url-shortener.git"
   },
-  "license": "ISC",
+  "license": "MIT",
   "author": "mojtabahosseinalinejad",
   "type": "module",
+  "files": [
+    "src",
+    "index.js",
+    "README.md"
+  ],
+  "keywords": [
+    "url",
+    "shortener",
+    "short-url",
+    "nodejs",
+    "javascript",
+    "esm",
+    "factory"
+  ],
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
