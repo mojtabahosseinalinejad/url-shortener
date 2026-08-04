@@ -24,7 +24,18 @@ export function createUrlShortener() {
     return shortCode;
   }
 
+  async function resolve(shortCode) {
+    const record = store.get(shortCode);
+
+    if (!record) {
+      throw new Error("short url not found!");
+    }
+
+    return record;
+  }
+
   return {
     shorten,
+    resolve
   };
 }
