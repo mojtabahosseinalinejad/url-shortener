@@ -1,1 +1,1 @@
-export { default } from "./src/index";
+export { createUrlShortener } from "./src/index.js";

@@ -1,6 +1,6 @@
-import { validateUrl } from "./utils/validateUrl";
-import { generateCode } from "./utils/generateCode";
-import { createMemoryStore } from "./stores/memoryStore";
+import { validateUrl } from "./utils/validateUrl.js";
+import { generateCode } from "./utils/generateCode.js";
+import { createMemoryStore } from "./stores/memoryStore.js";
 
 export function createUrlShortener() {
   const store = createMemoryStore();
@@ -23,4 +23,8 @@ export function createUrlShortener() {
 
     return shortCode;
   }
+
+  return {
+    shorten,
+  };
 }
