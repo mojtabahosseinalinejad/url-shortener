@@ -13,6 +13,12 @@ export function createMemoryStore() {
     },
     delete(key) {
       store.delete(key);
-    }
+    },
+    update(key, updateFn) {
+      const current = store.get(key);
+      if (current) {
+        store.set(key, updateFn(current));
+      }
+    },
   };
 }
