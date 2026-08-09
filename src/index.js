@@ -74,13 +74,29 @@ export function createUrlShortener() {
       return data;
     });
 
-
-
     return record.originalUrl;
+  }
+
+  async function getStats(shortCode) {
+    const record = store.get(shortCode);
+
+    if (!record) {
+      throw new Error("short url not found!");
+    }
+
+    return {
+      originalUrl: record.originalUrl,
+      createdAt: record.createdAt,
+      expiresAt: record.expiresAt,
+      maxClicks: record.maxClicks,
+      currentClicks: record.currentClicks,
+      analytics: record.analytics,
+    };
   }
 
   return {
     shorten,
     resolve,
+    getStats,
   };
 }
