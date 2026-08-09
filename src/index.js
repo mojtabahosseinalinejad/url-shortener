@@ -35,14 +35,48 @@ export function createUrlShortener() {
     return shortCode;
   }
 
-  async function resolve(shortCode) {
+  async function resolve(shortCode, resolveOptions = {}) {
     const record = store.get(shortCode);
 
     if (!record) {
       throw new Error("short url not found!");
     }
 
-    return record;
+    if (record.expiresAt && new Date() > record.expiresAt) {
+      throw new Error("this link has expired.");
+    }
+
+    if (record.maxClicks && record.currentClicks >= record.maxClicks) {
+      throw new Error("The click limit for this link has expired.");
+    }
+
+    if (record.passwordHash) {
+      const providedPassword = resolveOptions.password;
+      if (!providedPassword) {
+        throw new Error("This link requires a password.");
+      }
+      if (hashPassword(providedPassword) !== record.passwordHash) {
+        throw new Error("The password is incorrect.");
+      }
+    }
+
+    store.update(shortCode, (data) => {
+      data.currentClicks++;
+      data.analytics.clicks++;
+
+      const visitorInfo = {
+        ip: resolveOptions.ip || "unknown",
+        userAgent: resolveOptions.userAgent || "unknown",
+        timestamp: new Date(),
+      };
+      data.analytics.visitors.push(visitorInfo);
+
+      return data;
+    });
+
+
+
+    return record.originalUrl;
   }
 
   return {
