@@ -3,14 +3,16 @@ import { generateCode } from "./utils/generateCode.js";
 import { createMemoryStore } from "./stores/memoryStore.js";
 import { hashPassword } from "./utils/hashPassword.js";
 
-export function createUrlShortener() {
-  const store = createMemoryStore();
+export function createUrlShortener(options = {}) {
+  const store = options.storage || createMemoryStore();
+  const codeGenerator = options.codeGenerator || (() => generateCode());
+
   async function shorten(originalUrl, customAlias = null, options = {}) {
     if (!validateUrl(originalUrl)) {
       throw new Error("URL is not valid.");
     }
 
-    let shortCode = customAlias ? customAlias : generateCode();
+    let shortCode = customAlias ? customAlias : codeGenerator();
 
     if (store.has(shortCode)) {
       throw new Error("short code already exists.");
