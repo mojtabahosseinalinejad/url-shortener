@@ -64,14 +64,39 @@ const sh = createUrlShortener();
 
 ## API
 
-### `createUrlShortener()`
+### `createUrlShortener(options?)`
 
-Creates a new instance with its own private memory store.
+Creates a new instance. Accepts an optional `options` object for dependency injection.
 
-Returns an object with:
-- `shorten(originalUrl, customAlias?, options?)`
-- `resolve(shortCode, resolveOptions?)`
-- `getStats(shortCode)`
+- `options.storage`: A custom storage adapter object. If not provided, defaults to an in-memory `Map` store. The adapter must implement the following interface:
+  - `set(key, value)`: Save a record.
+  - `get(key)`: Retrieve a record.
+  - `has(key)`: Check if a key exists (returns boolean).
+  - `delete(key)`: Delete a record.
+  - `update(key, updateFn)`: Update a record by passing a callback that receives the current data and returns the updated data.
+- `options.codeGenerator`: A custom function `() => string` to generate short codes. If not provided, defaults to a 6-character random alphanumeric string.
+
+**Example with custom adapter and generator:**
+
+```javascript
+// Custom UUID generator
+const myGenerator = () => crypto.randomUUID().split('-')[0]; 
+
+// Custom storage (e.g., a simple object wrapper)
+const myStorage = {
+  _data: {},
+  set(k, v) { this._data[k] = v; },
+  get(k) { return this._data[k]; },
+  has(k) { return !!this._data[k]; },
+  delete(k) { delete this._data[k]; },
+  update(k, fn) { this._data[k] = fn(this._data[k]); }
+};
+
+const sh = createUrlShortener({
+  storage: myStorage,
+  codeGenerator: myGenerator
+});
+```
 
 ---
 
