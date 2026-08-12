@@ -14,13 +14,13 @@ export function createUrlShortener(options = {}) {
 
     let shortCode = customAlias ? customAlias : codeGenerator();
 
-    if (store.has(shortCode)) {
+    if (await store.has(shortCode)) {
       throw new Error("short code already exists.");
     }
 
     const { expiresAt, maxClicks, password } = options;
 
-    store.set(shortCode, {
+    await store.set(shortCode, {
       originalUrl,
       shortCode,
       createdAt: new Date(),
@@ -38,7 +38,7 @@ export function createUrlShortener(options = {}) {
   }
 
   async function resolve(shortCode, resolveOptions = {}) {
-    const record = store.get(shortCode);
+    const record = await store.get(shortCode);
 
     if (!record) {
       throw new Error("short url not found!");
@@ -62,7 +62,7 @@ export function createUrlShortener(options = {}) {
       }
     }
 
-    store.update(shortCode, (data) => {
+    await store.update(shortCode, (data) => {
       data.currentClicks++;
       data.analytics.clicks++;
 
@@ -80,7 +80,7 @@ export function createUrlShortener(options = {}) {
   }
 
   async function getStats(shortCode) {
-    const record = store.get(shortCode);
+    const record = await store.get(shortCode);
 
     if (!record) {
       throw new Error("short url not found!");
