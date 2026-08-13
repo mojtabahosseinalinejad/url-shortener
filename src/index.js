@@ -2,6 +2,15 @@ import { validateUrl } from "./utils/validateUrl.js";
 import { generateCode } from "./utils/generateCode.js";
 import { createMemoryStore } from "./stores/memoryStore.js";
 import { hashPassword } from "./utils/hashPassword.js";
+import {
+  invalidUrlError,
+  duplicateCodeError,
+  shortLinkNotFoundError,
+  expiredLinkError,
+  clickLimitReachedError,
+  passwordRequiredError,
+  invalidPasswordError,
+} from "./errors.js";
 
 export function createUrlShortener(options = {}) {
   const store = options.storage || createMemoryStore();
@@ -9,13 +18,13 @@ export function createUrlShortener(options = {}) {
 
   async function shorten(originalUrl, customAlias = null, options = {}) {
     if (!validateUrl(originalUrl)) {
-      throw new Error("URL is not valid.");
+      throw invalidUrlError(originalUrl);
     }
 
     let shortCode = customAlias ? customAlias : codeGenerator();
 
     if (await store.has(shortCode)) {
-      throw new Error("short code already exists.");
+      throw duplicateCodeError(shortCode);
     }
 
     const { expiresAt, maxClicks, password } = options;
@@ -41,24 +50,24 @@ export function createUrlShortener(options = {}) {
     const record = await store.get(shortCode);
 
     if (!record) {
-      throw new Error("short url not found!");
+      throw shortLinkNotFoundError(shortCode);
     }
 
     if (record.expiresAt && new Date() > record.expiresAt) {
-      throw new Error("this link has expired.");
+      throw expiredLinkError(shortCode, record.expiresAt);
     }
 
     if (record.maxClicks && record.currentClicks >= record.maxClicks) {
-      throw new Error("The click limit for this link has expired.");
+      throw clickLimitReachedError(shortCode, record.maxClicks);
     }
 
     if (record.passwordHash) {
       const providedPassword = resolveOptions.password;
       if (!providedPassword) {
-        throw new Error("This link requires a password.");
+        throw passwordRequiredError(shortCode);
       }
       if (hashPassword(providedPassword) !== record.passwordHash) {
-        throw new Error("The password is incorrect.");
+        throw invalidPasswordError(shortCode);
       }
     }
 
@@ -83,7 +92,7 @@ export function createUrlShortener(options = {}) {
     const record = await store.get(shortCode);
 
     if (!record) {
-      throw new Error("short url not found!");
+      throw shortLinkNotFoundError(shortCode);
     }
 
     return {
