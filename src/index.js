@@ -53,7 +53,7 @@ export function createUrlShortener(options = {}) {
       throw shortLinkNotFoundError(shortCode);
     }
 
-    if (record.expiresAt && new Date() > record.expiresAt) {
+    if (record.expiresAt && new Date() > new Date(record.expiresAt)) {
       throw expiredLinkError(shortCode, record.expiresAt);
     }
 
