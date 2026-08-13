@@ -1,19 +1,24 @@
 # js-url-shortener
 
 A zero-dependency, pure JavaScript URL shortener library.
-No classes. No external packages. Just factory functions and native `Map`.
+No classes. No external packages. Just factory functions and pluggable adapters.
 
 ## Features
 
-- Shorten URLs with random 6-char codes or custom aliases
+- Shorten URLs with random codes or custom aliases
 - Resolve short codes back to original URLs
-- **Expiration:** Set an `expiresAt` date/time
-- **Click Limit:** Lock a link after `maxClicks`
-- **Password Protection:** Protect links with a hashed password (API only)
-- **Analytics:** Track total clicks, per-visit IP and User-Agent
+- **Pluggable storage:** Bring your own database (MongoDB, Redis, Postgres...)
+- **Custom ID strategy:** Inject your own short-code generator
+- **Expiration:** Invalidate links after a given date
+- **Click limits:** Lock a link after N resolves
+- **Password protection:** API-level password gating
+- **Analytics:** Track clicks, IP, and User-Agent
 - Built-in URL validation using native `URL`
-- In-memory storage (isolated per instance)
 - Pure ESM — works with `import/export`
+
+## Requirements
+
+- Node.js 16+ (ESM support required)
 
 ## Installation
 
@@ -21,158 +26,169 @@ No classes. No external packages. Just factory functions and native `Map`.
 npm install js-url-shortener
 ```
 
-## Usage
+## Quick Start
 
 ```javascript
 import { createUrlShortener } from "js-url-shortener";
 
 const sh = createUrlShortener();
 
-(async () => {
-  // 1) Basic shorten
-  const code = await sh.shorten("https://google.com/search?q=test");
-  console.log(code); // e.g., "aB3dEf"
+const code = await sh.shorten("https://google.com/search?q=test");
+console.log(code); // "aB3dEf"
 
-  // 2) Custom alias
-  const alias = await sh.shorten("https://github.com", "gh");
-  console.log(alias); // "gh"
-
-  // 3) Resolve
-  const original = await sh.resolve("gh");
-  console.log(original); // "https://github.com"
-
-  // 4) Advanced: expiration + click limit + password
-  const secret = await sh.shorten("https://secret.com", "s1", {
-    expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
-    maxClicks: 5,
-    password: "mypass123"
-  });
-
-  // 5) Resolve protected link with analytics tracking
-  const url = await sh.resolve("s1", {
-    password: "mypass123",
-    ip: "192.168.1.5",
-    userAgent: "Mozilla/5.0"
-  });
-  console.log(url); // "https://secret.com"
-
-  // 6) Get analytics/stats
-  const stats = await sh.getStats("s1");
-  console.log(stats.analytics); // { clicks: 1, visitors: [{ ip, userAgent, timestamp }] }
-})();
+const original = await sh.resolve(code);
+console.log(original); // "https://google.com/search?q=test"
 ```
+
+## Advanced Usage
+
+```javascript
+// Create a protected, expiring, click-limited link
+await sh.shorten("https://secret.com", "s1", {
+  expiresAt: new Date(Date.now() + 3600000), // 1 hour
+  maxClicks: 5,
+  password: "mypass123",
+});
+
+// Resolve it and record analytics
+const url = await sh.resolve("s1", {
+  password: "mypass123",
+  ip: "192.168.1.5",
+  userAgent: "Mozilla/5.0",
+});
+
+// Inspect stats
+const stats = await sh.getStats("s1");
+console.log(stats.analytics.clicks); // 1
+console.log(stats.analytics.visitors); // [{ ip, userAgent, timestamp }]
+```
+
+---
 
 ## API
 
 ### `createUrlShortener(options?)`
 
-Creates a new instance. Accepts an optional `options` object for dependency injection.
+Creates a new shortener instance.
 
-- `options.storage`: A custom storage adapter object. If not provided, defaults to an in-memory `Map` store. The adapter must implement the following interface:
-  - `set(key, value)`: Save a record.
-  - `get(key)`: Retrieve a record.
-  - `has(key)`: Check if a key exists (returns boolean).
-  - `delete(key)`: Delete a record.
-  - `update(key, updateFn)`: Update a record by passing a callback that receives the current data and returns the updated data.
-- `options.codeGenerator`: A custom function `() => string` to generate short codes. If not provided, defaults to a 6-character random alphanumeric string.
+| Option          | Type           | Default               | Description                        |
+| --------------- | -------------- | --------------------- | ---------------------------------- |
+| `storage`       | `object`       | In-memory `Map` store | Custom storage adapter (see below) |
+| `codeGenerator` | `() => string` | 6-char alphanumeric   | Custom short-code generator        |
 
-**Example with custom adapter and generator:**
-
-```javascript
-// Custom UUID generator
-const myGenerator = () => crypto.randomUUID().split('-')[0]; 
-
-// Custom storage (e.g., a simple object wrapper)
-const myStorage = {
-  _data: {},
-  set(k, v) { this._data[k] = v; },
-  get(k) { return this._data[k]; },
-  has(k) { return !!this._data[k]; },
-  delete(k) { delete this._data[k]; },
-  update(k, fn) { this._data[k] = fn(this._data[k]); }
-};
-
-const sh = createUrlShortener({
-  storage: myStorage,
-  codeGenerator: myGenerator
-});
-```
+Returns: `{ shorten, resolve, getStats }`
 
 ---
 
 ### `shorten(originalUrl, customAlias?, options?)`
 
-- `originalUrl`: Must be a valid `http://` or `https://` URL.
-- `customAlias`: Optional custom short code.
-- `options` (optional object):
-  - `expiresAt`: `Date` or ISO string. Link becomes invalid after this time.
-  - `maxClicks`: `number`. Link blocked after this many resolves.
-  - `password`: `string`. Hashed internally with SHA-256; never stored raw.
+Returns `Promise<string>` — the short code.
 
-Throws:
-- `URL is not valid.`
-- `short code already exists.`
-- `Link has expired.` (on resolve, not shorten)
+- `originalUrl` — must be a valid `http://` or `https://` URL
+- `customAlias` — optional custom code (skips the generator)
+- `options.expiresAt` — `Date` or ISO string
+- `options.maxClicks` — `number`
+- `options.password` — `string` (hashed before storage)
+
+Throws if the URL is invalid or the code already exists.
 
 ---
 
 ### `resolve(shortCode, resolveOptions?)`
 
-Returns the original URL.
+Returns `Promise<string>` — the original URL.
 
-- `resolveOptions` (optional object):
-  - `password`: Required if the link was created with a `password`.
-  - `ip`: Optional visitor IP recorded in analytics.
-  - `userAgent`: Optional User-Agent recorded in analytics.
+- `resolveOptions.password` — required if the link is protected
+- `resolveOptions.ip` — recorded in analytics (default `"unknown"`)
+- `resolveOptions.userAgent` — recorded in analytics (default `"unknown"`)
 
-Behavior checks (in order):
-1. Link must exist.
-2. Must not be expired.
-3. Must not have exceeded `maxClicks`.
-4. If `password` was set, must provide correct `resolveOptions.password`.
-
-Throws:
-- `short url not found!`
-- `this link has expired.`
-- `The click limit for this link has expired.`
-- `This link requires a password.` / `The password is incorrect.`
-
-On success, increments `currentClicks` and pushes a new visitor record into `analytics.visitors`.
+Validation order: existence → expiration → click limit → password.
+On success, increments the click counter and appends a visitor record.
 
 ---
 
 ### `getStats(shortCode)`
 
-Returns statistics for a link. Does **not** expose the password hash.
+Returns metadata and analytics. **The password hash is never exposed.**
 
-Returns:
 ```javascript
 {
-  originalUrl: "...",
-  shortCode: "...",
+  originalUrl: string,
   createdAt: Date,
   expiresAt: Date | null,
   maxClicks: number | null,
   currentClicks: number,
   analytics: {
     clicks: number,
-    visitors: [
-      { ip: "...", userAgent: "...", timestamp: Date }
-    ]
+    visitors: [{ ip, userAgent, timestamp }]
   }
 }
 ```
 
-Throws:
-- `short url not found!`
+---
+
+## Storage Adapters
+
+The default store is in-memory and **resets when your process restarts**.
+For production, inject your own adapter. All methods may be sync or `async` — the core always `await`s them.
+
+```javascript
+const myStore = {
+  async set(key, value) {
+    /* save record */
+  },
+  async get(key) {
+    /* return record or null */
+  },
+  async has(key) {
+    /* return boolean */
+  },
+  async update(key, updateFn) {
+    // read current, pass to updateFn, save the returned value
+  },
+  async delete(key) {
+    /* reserved for future use */
+  },
+};
+
+const sh = createUrlShortener({ storage: myStore });
+```
+
+> `delete` is not currently called by the core, but implementing it is recommended for forward compatibility.
+
+Ready-to-use adapters live in the [`examples/`](./examples) folder:
+
+- [MongoDB](https://github.com/mojtabahosseinalinejad/url-shortener/blob/main/examples/mongodb.js)
+- [Redis](https://github.com/mojtabahosseinalinejad/url-shortener/blob/main/examples/redis.js)
+- [PostgreSQL](https://github.com/mojtabahosseinalinejad/url-shortener/blob/main/examples/postgresql.js)
 
 ---
 
-## Important Notes
+## Custom Code Generator
 
-- **Storage is temporary:** We use a native `Map()` inside the factory. If your process restarts, all links disappear. This package is perfect for learning, testing, or building a persistent adapter (Mongo, Redis) around it.
-- **Password security:** Passwords are hashed using Node's native `crypto.createHash('sha256')`. The raw password is never stored in memory or returned by `getStats`.
-- **ES Modules:** Requires Node.js with ESM support (`"type": "module"`).
+```javascript
+import crypto from "crypto";
+
+const sh = createUrlShortener({
+  codeGenerator: () => crypto.randomUUID().split("-")[0],
+});
+```
+
+Any function returning a string works — `nanoid`, `hashids`, base62 counters, etc.
+
+---
+
+## Security Notes
+
+- **Passwords use unsalted SHA-256.** This is enough to avoid storing plaintext, but it is **not** suitable for high-value secrets. For sensitive use cases, hash the password yourself with `bcrypt`/`argon2` before it reaches this library, or treat the feature as a simple access gate.
+- Password checking is not constant-time and may be vulnerable to timing attacks under adversarial conditions.
+- Analytics store raw IPs — make sure this complies with your privacy policy (GDPR etc.).
+
+---
+
+## Contributing
+
+Issues and PRs are welcome at the [GitHub repository](https://github.com/mojtabahosseinalinejad/url-shortener.git).
 
 ## License
 
