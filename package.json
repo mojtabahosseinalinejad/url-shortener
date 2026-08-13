@@ -16,7 +16,8 @@
   "files": [
     "src",
     "index.js",
-    "README.md"
+    "README.md",
+    "examples"
   ],
   "keywords": [
     "url",
