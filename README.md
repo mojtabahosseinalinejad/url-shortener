@@ -127,6 +127,61 @@ Returns metadata and analytics. **The password hash is never exposed.**
 
 ---
 
+## Error Handling
+
+Every thrown value is a real `Error` instance with three extra properties:
+
+| Property  | Description                                        |
+| --------- | -------------------------------------------------- |
+| `name`    | Human-readable error name, e.g. `ExpiredLinkError` |
+| `code`    | **Stable** machine-readable code — branch on this  |
+| `details` | Structured context about the failure               |
+
+> Always check `err.code`, never `err.message`. Messages may change between
+> minor versions; codes will not.
+
+### Available codes
+
+| `err.code`            | `err.name`               | Thrown by             | `err.details`              |
+| --------------------- | ------------------------ | --------------------- | -------------------------- |
+| `INVALID_URL`         | `InvalidUrlError`        | `shorten`             | `{ url }`                  |
+| `DUPLICATE_CODE`      | `DuplicateCodeError`     | `shorten`             | `{ shortCode }`            |
+| `NOT_FOUND`           | `ShortLinkNotFoundError` | `resolve`, `getStats` | `{ shortCode }`            |
+| `EXPIRED`             | `ExpiredLinkError`       | `resolve`             | `{ shortCode, expiresAt }` |
+| `CLICK_LIMIT_REACHED` | `ClickLimitReachedError` | `resolve`             | `{ shortCode, maxClicks }` |
+| `PASSWORD_REQUIRED`   | `PasswordRequiredError`  | `resolve`             | `{ shortCode }`            |
+| `INVALID_PASSWORD`    | `InvalidPasswordError`   | `resolve`             | `{ shortCode }`            |
+
+### Example: mapping errors to HTTP responses
+
+```javascript
+import { createUrlShortener, ERROR_CODES } from "js-url-shortener";
+
+const STATUS_BY_CODE = {
+  [ERROR_CODES.INVALID_URL]: 400,
+  [ERROR_CODES.DUPLICATE_CODE]: 409,
+  [ERROR_CODES.NOT_FOUND]: 404,
+  [ERROR_CODES.EXPIRED]: 410,
+  [ERROR_CODES.CLICK_LIMIT_REACHED]: 410,
+  [ERROR_CODES.PASSWORD_REQUIRED]: 401,
+  [ERROR_CODES.INVALID_PASSWORD]: 403,
+};
+
+app.get("/:code", async (req, res) => {
+  try {
+    const url = await sh.resolve(req.params.code, {
+      password: req.query.pw,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    res.redirect(url);
+  } catch (err) {
+    const status = STATUS_BY_CODE[err.code] ?? 500;
+    res.status(status).json({ error: err.name, message: err.message });
+  }
+});
+```
+
 ## Storage Adapters
 
 The default store is in-memory and **resets when your process restarts**.
